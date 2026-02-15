@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import {
   BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid,
-  Tooltip, Legend, ResponsiveContainer
+  Tooltip, Legend, ResponsiveContainer, LabelList
 } from "recharts";
 import {
   Zap, LayoutGrid, Download, Upload,
@@ -199,10 +199,11 @@ const sortAsc = recs => [...recs].sort((a,b) => a.year !== b.year ? a.year-b.yea
 function prepareAnnualData(records) {
   const map = {};
   records.forEach(r => {
-    if (!map[r.year]) map[r.year] = { year: String(r.year), household:0, car:0, bojler:0 };
+    if (!map[r.year]) map[r.year] = { year: String(r.year), household:0, car:0, bojler:0, total:0 };
     map[r.year].household += r.householdConsumption||0;
     map[r.year].car       += r.carConsumption||0;
     map[r.year].bojler    += r.bojlerConsumption||0;
+    map[r.year].total     += (r.householdConsumption||0) + (r.carConsumption||0) + (r.bojlerConsumption||0);
   });
   return Object.values(map).sort((a,b) => Number(a.year)-Number(b.year));
 }
@@ -267,7 +268,6 @@ function ChartCard({ title, dark, children, span2 }) {
 // ─── ChartsView ───────────────────────────────────────────────
 function ChartsView({ records, dark }) {
   const annual   = useMemo(() => prepareAnnualData(records), [records]);
-  const total    = useMemo(() => prepareMonthly(records, "totalConsumption"), [records]);
   const bojler   = useMemo(() => prepareMonthly(records, "bojlerConsumption"), [records]);
   const house    = useMemo(() => prepareMonthly(records, "householdConsumption"), [records]);
   const car      = useMemo(() => prepareMonthly(records, "carConsumption"), [records]);
@@ -305,19 +305,23 @@ function ChartsView({ records, dark }) {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <ChartCard title="Roční spotřeba celkem (kWh)" dark={dark}>
           <ResponsiveContainer width="100%" height={H}>
-            <BarChart data={annual} margin={{ top:4, right:8, left:-14, bottom:2 }}>
+            <BarChart data={annual} margin={{ top:28, right:8, left:-14, bottom:2 }}>
               <CartesianGrid strokeDasharray="3 3" stroke={gr} vertical={false} />
               <XAxis dataKey="year" tick={{ fill:ax, fontSize:12 }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fill:ax, fontSize:10 }} axisLine={false} tickLine={false} width={40} />
               <Tooltip content={<CustomTooltip dark={dark} />} />
               <Legend wrapperStyle={{ fontSize:12, color: dark?"#7fa3c8":"#64748b" }} />
-              <Bar dataKey="household" name="Domácnost" fill="#38bdf8" radius={[4,4,0,0]} />
-              <Bar dataKey="car"       name="Auto"       fill="#34d399" radius={[4,4,0,0]} />
-              <Bar dataKey="bojler"    name="Bojler"     fill="#fb923c" radius={[4,4,0,0]} />
+              <Bar dataKey="household" name="Domácnost" fill="#38bdf8" stackId="a" radius={[0,0,0,0]} />
+              <Bar dataKey="car"       name="Auto"       fill="#34d399" stackId="a" radius={[0,0,0,0]} />
+              <Bar dataKey="bojler"    name="Bojler"     fill="#fb923c" stackId="a" radius={[4,4,0,0]}>
+                <LabelList dataKey="total" position="top"
+                  style={{ fill: dark?"#dce9f8":"#1e293b", fontSize:12, fontWeight:800 }}
+                  formatter={v => v > 0 ? Math.round(v) : ""}
+                />
+              </Bar>
             </BarChart>
           </ResponsiveContainer>
         </ChartCard>
-        <ChartCard title="Celková spotřeba – porovnání měsíců" dark={dark}><Lines data={total} /></ChartCard>
         <ChartCard title="Bojler – porovnání měsíců" dark={dark}><Lines data={bojler} /></ChartCard>
         <ChartCard title="Domácnost – porovnání měsíců" dark={dark}><Lines data={house} /></ChartCard>
         <ChartCard title="Auto – porovnání měsíců" dark={dark} span2><Lines data={car} /></ChartCard>
@@ -443,7 +447,7 @@ function InputForm({ records, onSave, editRecord, onCancelEdit, dark }) {
             <span style={{ ...D.txt1(dark), fontWeight:600, fontSize:14 }}>Domácnost</span>
           </div>
           <LBL>Stav elektroměru</LBL>
-          <input type="number" placeholder="12345" style={inp()} value={form.householdState} onChange={e=>set("householdState",e.target.value)} />
+          <input type="number" placeholder="" style={inp()} value={form.householdState} onChange={e=>set("householdState",e.target.value)} />
           {preview && (
             <p style={{ ...D.txt2(dark), fontSize:12, margin:"6px 0 0" }}>
               {preview.prevH != null ? `Předch.: ${preview.prevH} → ` : "Bez předch. → "}
@@ -457,7 +461,7 @@ function InputForm({ records, onSave, editRecord, onCancelEdit, dark }) {
             {override.household ? "Skrýt ruční přepis" : "Zadat spotřebu ručně"}
           </button>
           {override.household && (
-            <input type="number" placeholder="Spotřeba kWh" style={{ ...inp(), marginTop:8 }}
+            <input type="number" placeholder="" style={{ ...inp(), marginTop:8 }}
               value={form.householdConsumptionOverride??""} onChange={e=>set("householdConsumptionOverride", e.target.value!==""?e.target.value:null)} />
           )}
         </div>
@@ -469,7 +473,7 @@ function InputForm({ records, onSave, editRecord, onCancelEdit, dark }) {
             <span style={{ ...D.txt1(dark), fontWeight:600, fontSize:14 }}>Auto</span>
           </div>
           <LBL>Stav elektroměru</LBL>
-          <input type="number" placeholder="8900" style={inp()} value={form.carState} onChange={e=>set("carState",e.target.value)} />
+          <input type="number" placeholder="" style={inp()} value={form.carState} onChange={e=>set("carState",e.target.value)} />
           {preview && (
             <p style={{ ...D.txt2(dark), fontSize:12, margin:"6px 0 0" }}>
               {preview.prevC != null ? `Předch.: ${preview.prevC} → ` : "Bez předch. → "}
@@ -483,7 +487,7 @@ function InputForm({ records, onSave, editRecord, onCancelEdit, dark }) {
             {override.car ? "Skrýt ruční přepis" : "Zadat spotřebu ručně"}
           </button>
           {override.car && (
-            <input type="number" placeholder="Spotřeba kWh" style={{ ...inp(), marginTop:8 }}
+            <input type="number" placeholder="" style={{ ...inp(), marginTop:8 }}
               value={form.carConsumptionOverride??""} onChange={e=>set("carConsumptionOverride", e.target.value!==""?e.target.value:null)} />
           )}
         </div>
@@ -495,7 +499,7 @@ function InputForm({ records, onSave, editRecord, onCancelEdit, dark }) {
             <span style={{ ...D.txt1(dark), fontWeight:600, fontSize:14 }}>Bojler</span>
           </div>
           <LBL>Spotřeba (kWh)</LBL>
-          <input type="number" placeholder="89" style={inp()} value={form.bojlerConsumption} onChange={e=>set("bojlerConsumption",e.target.value)} />
+          <input type="number" placeholder="" style={inp()} value={form.bojlerConsumption} onChange={e=>set("bojlerConsumption",e.target.value)} />
           <p style={{ ...D.txt3(dark), fontSize:12, margin:"8px 0 0" }}>Přímý vstup spotřeby</p>
         </div>
       </div>
@@ -545,7 +549,7 @@ function DataTable({ records, onEdit, onDelete, dark }) {
   const [confirmDelete, setConfirmDelete] = useState(null);
   const editAndScroll = (r) => { onEdit(r); window.scrollTo({ top:0, behavior:"smooth" }); };
 
-  const TH = ({ children, right }) => (
+  const TH = ({ children, right, sticky, dark: thDark }) => (
     <th style={{
       textAlign: right ? "right" : "left",
       padding:"11px 14px", fontSize:11,
@@ -553,6 +557,10 @@ function DataTable({ records, onEdit, onDelete, dark }) {
       color: dark?"var(--nb-txt3)":"#94a3b8",
       whiteSpace:"nowrap",
       borderBottom:`2px solid ${dark?"var(--nb-border2)":"#e2e8f0"}`,
+      ...(sticky ? {
+        position:"sticky", top:0, zIndex:2,
+        background: dark?"var(--nb-card)":"#fff",
+      } : {}),
     }}>{children}</th>
   );
 
@@ -576,15 +584,15 @@ function DataTable({ records, onEdit, onDelete, dark }) {
   );
 
   return (
-    <div style={{ ...D.card(dark), borderRadius:18, overflow:"hidden" }}>
+    <div style={{ ...D.card(dark), borderRadius:18 }}>
 
       {/* ── Přepínače roků ── */}
       <div style={{
         display:"flex", alignItems:"center", flexWrap:"wrap", gap:6,
         padding:"12px 16px",
         borderBottom:`1px solid ${dark?"var(--nb-border)":"#f1f5f9"}`,
+        borderRadius:"18px 18px 0 0",
       }}>
-        {/* Tlačítko "Vše" */}
         {[null, ...allYears].map(y => {
           const isActive = activeYear === y;
           return (
@@ -602,26 +610,32 @@ function DataTable({ records, onEdit, onDelete, dark }) {
 
         {/* Součty vpravo */}
         <div style={{ marginLeft:"auto", display:"flex", flexWrap:"wrap", gap:"4px 16px", fontSize:12 }}>
-          <span style={{ color:"#38bdf8", fontWeight:700 }}>🏠 {totH} kWh</span>
-          <span style={{ color:"#34d399", fontWeight:700 }}>🚗 {totC} kWh</span>
-          <span style={{ color:"#fb923c", fontWeight:700 }}>🛁 {totB} kWh</span>
-          <span style={{ ...D.txt1(dark), fontWeight:800 }}>∑ {totT} kWh</span>
+          <span style={{ color:"#38bdf8", fontWeight:700 }}>🏠 {Math.round(totH)} kWh</span>
+          <span style={{ color:"#34d399", fontWeight:700 }}>🚗 {Math.round(totC)} kWh</span>
+          <span style={{ color:"#fb923c", fontWeight:700 }}>🛁 {Math.round(totB)} kWh</span>
+          <span style={{ ...D.txt1(dark), fontWeight:800 }}>∑ {Math.round(totT)} kWh</span>
         </div>
       </div>
 
-      {/* ── Tabulka ── */}
-      <div style={{ overflowX:"auto", WebkitOverflowScrolling:"touch" }}>
+      {/* ── Tabulka s limitem výšky při "Vše" ── */}
+      <div style={{
+        overflowX:"auto",
+        overflowY: activeYear === null ? "auto" : "visible",
+        maxHeight: activeYear === null ? "576px" : "none",
+        WebkitOverflowScrolling:"touch",
+        borderRadius:"0 0 18px 18px",
+      }}>
         <table style={{ width:"100%", borderCollapse:"collapse", minWidth:560 }}>
           <thead>
             <tr>
-              <TH>Datum</TH>
-              <TH>🏠 Stav</TH>
-              <TH right>Dom. kWh</TH>
-              <TH>🚗 Stav</TH>
-              <TH right>Auto kWh</TH>
-              <TH right>🛁 Bojler</TH>
-              <TH right>∑ Celkem</TH>
-              <TH></TH>
+              <TH sticky={activeYear === null} dark={dark}>Datum</TH>
+              <TH sticky={activeYear === null} dark={dark}>🏠 Stav</TH>
+              <TH sticky={activeYear === null} dark={dark} right>Dom. kWh</TH>
+              <TH sticky={activeYear === null} dark={dark}>🚗 Stav</TH>
+              <TH sticky={activeYear === null} dark={dark} right>Auto kWh</TH>
+              <TH sticky={activeYear === null} dark={dark} right>🛁 Bojler</TH>
+              <TH sticky={activeYear === null} dark={dark} right>∑ Celkem</TH>
+              <TH sticky={activeYear === null} dark={dark}></TH>
             </tr>
           </thead>
           <tbody>
