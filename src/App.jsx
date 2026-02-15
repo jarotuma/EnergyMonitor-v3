@@ -304,20 +304,27 @@ function ChartsView({ records, dark }) {
     <div style={{ display:"grid", gridTemplateColumns:"repeat(1, 1fr)", gap:16 }} className="lg:grid-cols-2-custom">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <ChartCard title="Roční spotřeba celkem (kWh)" dark={dark}>
-          <ResponsiveContainer width="100%" height={H}>
-            <BarChart data={annual} margin={{ top:28, right:8, left:-14, bottom:2 }}>
+          <ResponsiveContainer width="100%" height={260}>
+            <BarChart data={annual} margin={{ top:28, right:8, left:-14, bottom:2 }} barCategoryGap="20%" barGap={3}>
               <CartesianGrid strokeDasharray="3 3" stroke={gr} vertical={false} />
               <XAxis dataKey="year" tick={{ fill:ax, fontSize:12 }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fill:ax, fontSize:10 }} axisLine={false} tickLine={false} width={40} />
               <Tooltip content={<CustomTooltip dark={dark} />} />
               <Legend wrapperStyle={{ fontSize:12, color: dark?"#7fa3c8":"#64748b" }} />
-              <Bar dataKey="household" name="Domácnost" fill="#38bdf8" stackId="a" radius={[0,0,0,0]} />
-              <Bar dataKey="car"       name="Auto"       fill="#34d399" stackId="a" radius={[0,0,0,0]} />
-              <Bar dataKey="bojler"    name="Bojler"     fill="#fb923c" stackId="a" radius={[4,4,0,0]}>
-                <LabelList dataKey="total" position="top"
-                  style={{ fill: dark?"#dce9f8":"#1e293b", fontSize:12, fontWeight:800 }}
-                  formatter={v => v > 0 ? Math.round(v) : ""}
-                />
+              <Bar dataKey="household" name="Domácnost" fill="#38bdf8" radius={[4,4,0,0]}>
+                <LabelList dataKey="household" position="top"
+                  style={{ fill: dark?"#dce9f8":"#1e293b", fontSize:11, fontWeight:700 }}
+                  formatter={v => v > 0 ? Math.round(v) : ""} />
+              </Bar>
+              <Bar dataKey="car" name="Auto" fill="#34d399" radius={[4,4,0,0]}>
+                <LabelList dataKey="car" position="top"
+                  style={{ fill: dark?"#dce9f8":"#1e293b", fontSize:11, fontWeight:700 }}
+                  formatter={v => v > 0 ? Math.round(v) : ""} />
+              </Bar>
+              <Bar dataKey="bojler" name="Bojler" fill="#fb923c" radius={[4,4,0,0]}>
+                <LabelList dataKey="bojler" position="top"
+                  style={{ fill: dark?"#dce9f8":"#1e293b", fontSize:11, fontWeight:700 }}
+                  formatter={v => v > 0 ? Math.round(v) : ""} />
               </Bar>
             </BarChart>
           </ResponsiveContainer>
