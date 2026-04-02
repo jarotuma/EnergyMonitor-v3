@@ -290,6 +290,21 @@ function ChartsView({ records, dark }) {
   const car      = useMemo(() => prepareMonthly(records, "carConsumption"), [records]);
   const years2   = useMemo(() => [...new Set(records.map(r=>r.year))].sort().slice(-2).map(String), [records]);
 
+  // Year filter for debug card
+  const allYearsInData = useMemo(() => [...new Set(records.map(r => r.year))].sort((a,b) => b-a), [records]);
+  const [debugYear, setDebugYear] = useState(() => {
+    const currentYear = new Date().getFullYear();
+    return allYearsInData.includes(currentYear) ? currentYear : (allYearsInData[0] || currentYear);
+  });
+
+  // Auto-update debug year when new year starts
+  useEffect(() => {
+    const currentYear = new Date().getFullYear();
+    if (currentYear !== debugYear && allYearsInData.includes(currentYear)) {
+      setDebugYear(currentYear);
+    }
+  }, [allYearsInData, debugYear]);
+
   const ax = dark ? "#3f6080" : "#94a3b8";
   const gr = dark ? "#15284a" : "#f1f5f9";
   const H  = 220;
@@ -343,15 +358,32 @@ function ChartsView({ records, dark }) {
         </ChartCard>
 
         {/* Debug: Show breakdown for selected year */}
-        <ChartCard title="🔍 Kontrola součtů (2026)" dark={dark}>
+        <ChartCard title={`🔍 Kontrola součtů (${debugYear})`} dark={dark}>
           <div style={{ fontSize:12, ...D.txt2(dark) }}>
+            {/* Year filter buttons */}
+            {allYearsInData.length > 1 && (
+              <div style={{ display:"flex", gap:6, marginBottom:12, flexWrap:"wrap" }}>
+                {allYearsInData.map(y => (
+                  <button key={y} onClick={() => setDebugYear(y)} style={{
+                    padding:"4px 12px", borderRadius:999, fontSize:11, fontWeight:700,
+                    border:"none", cursor:"pointer", transition:"all 0.15s",
+                    background: debugYear === y ? "#0ea5e9" : dark ? "var(--nb-hover)" : "#f1f5f9",
+                    color: debugYear === y ? "#fff" : dark ? "var(--nb-txt2)" : "#64748b",
+                    boxShadow: debugYear === y ? "0 2px 8px rgba(14,165,233,0.3)" : "none",
+                  }}>
+                    {y}
+                  </button>
+                ))}
+              </div>
+            )}
+
             {(() => {
-              const year2026 = records.filter(r => r.year === 2026).sort((a,b) => a.month - b.month);
-              if (year2026.length === 0) return <p>Žádná data pro rok 2026</p>;
+              const yearRecords = records.filter(r => r.year === debugYear).sort((a,b) => a.month - b.month);
+              if (yearRecords.length === 0) return <p>Žádná data pro rok {debugYear}</p>;
               
-              const sumH = year2026.reduce((s,r) => s + (r.householdConsumption||0), 0);
-              const sumC = year2026.reduce((s,r) => s + (r.carConsumption||0), 0);
-              const sumB = year2026.reduce((s,r) => s + (r.bojlerConsumption||0), 0);
+              const sumH = yearRecords.reduce((s,r) => s + (r.householdConsumption||0), 0);
+              const sumC = yearRecords.reduce((s,r) => s + (r.carConsumption||0), 0);
+              const sumB = yearRecords.reduce((s,r) => s + (r.bojlerConsumption||0), 0);
               
               return (
                 <div>
@@ -385,7 +417,7 @@ function ChartsView({ records, dark }) {
                         </tr>
                       </thead>
                       <tbody>
-                        {year2026.map(r => (
+                        {yearRecords.map(r => (
                           <tr key={r.id} style={{ borderBottom:`1px solid ${dark?"var(--nb-border)":"#f8fafc"}` }}>
                             <td style={{ padding:"4px 0", ...D.txt2(dark) }}>{MONTHS_CZ[r.month-1]}</td>
                             <td style={{ textAlign:"right", padding:"4px 0", ...D.txt1(dark) }}>{r.householdConsumption||0}</td>
