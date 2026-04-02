@@ -146,7 +146,7 @@ function useDataStore() {
       const updated = records.map(r => r.id !== existing.id ? r : {
         ...r, householdState: Number(hState)||0, householdConsumption: hC,
         carState: Number(cState)||0, carConsumption: cC,
-        bojlerConsumption: Number(bojler)||0, totalConsumption: hC + cC,
+        bojlerConsumption: Number(bojler)||0, totalConsumption: hC + cC + (Number(bojler)||0),
       });
       setRecords(updated); await persist(updated);
       return { record: updated.find(r => r.id === existing.id), merged: true };
@@ -160,7 +160,7 @@ function useDataStore() {
       id: genId(), year, month,
       householdState: Number(fd.householdState)||0, householdConsumption: hC,
       carState: Number(fd.carState)||0, carConsumption: cC,
-      bojlerConsumption: Number(fd.bojlerConsumption)||0, totalConsumption: hC + cC,
+      bojlerConsumption: Number(fd.bojlerConsumption)||0, totalConsumption: hC + cC + (Number(fd.bojlerConsumption)||0),
     };
     const updated = [...records, rec];
     setRecords(updated); await persist(updated);
@@ -176,7 +176,7 @@ function useDataStore() {
       ...r, year: Number(fd.year), month: Number(fd.month),
       householdState: Number(fd.householdState)||0, householdConsumption: hC,
       carState: Number(fd.carState)||0, carConsumption: cC,
-      bojlerConsumption: Number(fd.bojlerConsumption)||0, totalConsumption: hC + cC,
+      bojlerConsumption: Number(fd.bojlerConsumption)||0, totalConsumption: hC + cC + (Number(fd.bojlerConsumption)||0),
     });
     setRecords(updated); await persist(updated);
   }, [records, persist]);
@@ -200,11 +200,28 @@ function prepareAnnualData(records) {
   const map = {};
   records.forEach(r => {
     if (!map[r.year]) map[r.year] = { year: String(r.year), household:0, car:0, bojler:0, total:0 };
-    map[r.year].household += r.householdConsumption||0;
-    map[r.year].car       += r.carConsumption||0;
-    map[r.year].bojler    += r.bojlerConsumption||0;
-    map[r.year].total     += (r.householdConsumption||0) + (r.carConsumption||0) + (r.bojlerConsumption||0);
+    
+    // Parse values to ensure they're numbers
+    const h = Number(r.householdConsumption) || 0;
+    const c = Number(r.carConsumption) || 0;
+    const b = Number(r.bojlerConsumption) || 0;
+    
+    map[r.year].household += h;
+    map[r.year].car       += c;
+    map[r.year].bojler    += b;
+    map[r.year].total     += h + c + b;
   });
+  
+  // Debug log for year 2026
+  if (map[2026]) {
+    console.log('🔍 DEBUG - Roční graf 2026:', {
+      household: Math.round(map[2026].household),
+      car: Math.round(map[2026].car),
+      bojler: Math.round(map[2026].bojler),
+      total: Math.round(map[2026].total)
+    });
+  }
+  
   return Object.values(map).sort((a,b) => Number(a.year)-Number(b.year));
 }
 
@@ -305,30 +322,88 @@ function ChartsView({ records, dark }) {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <ChartCard title="Roční spotřeba celkem (kWh)" dark={dark}>
           <ResponsiveContainer width="100%" height={260}>
-            <BarChart data={annual} margin={{ top:28, right:8, left:-14, bottom:2 }} barCategoryGap="20%" barGap={3}>
+            <BarChart data={annual} margin={{ top:32, right:8, left:-14, bottom:2 }} barCategoryGap="20%" barGap={3}>
               <CartesianGrid strokeDasharray="3 3" stroke={gr} vertical={false} />
               <XAxis dataKey="year" tick={{ fill:ax, fontSize:12 }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fill:ax, fontSize:10 }} axisLine={false} tickLine={false} width={40} />
               <Tooltip content={<CustomTooltip dark={dark} />} />
               <Legend wrapperStyle={{ fontSize:12, color: dark?"#7fa3c8":"#64748b" }} />
-              <Bar dataKey="household" name="Domácnost" fill="#38bdf8" radius={[4,4,0,0]}>
-                <LabelList dataKey="household" position="top"
-                  style={{ fill: dark?"#dce9f8":"#1e293b", fontSize:11, fontWeight:700 }}
-                  formatter={v => v > 0 ? Math.round(v) : ""} />
-              </Bar>
-              <Bar dataKey="car" name="Auto" fill="#34d399" radius={[4,4,0,0]}>
-                <LabelList dataKey="car" position="top"
-                  style={{ fill: dark?"#dce9f8":"#1e293b", fontSize:11, fontWeight:700 }}
-                  formatter={v => v > 0 ? Math.round(v) : ""} />
-              </Bar>
+              <Bar dataKey="household" name="Domácnost" fill="#38bdf8" radius={[4,4,0,0]} />
+              <Bar dataKey="car" name="Auto" fill="#34d399" radius={[4,4,0,0]} />
               <Bar dataKey="bojler" name="Bojler" fill="#fb923c" radius={[4,4,0,0]}>
-                <LabelList dataKey="bojler" position="top"
-                  style={{ fill: dark?"#dce9f8":"#1e293b", fontSize:11, fontWeight:700 }}
-                  formatter={v => v > 0 ? Math.round(v) : ""} />
+                {/* Total sum above entire group */}
+                <LabelList dataKey="total" position="top"
+                  style={{ fill: dark?"#dce9f8":"#1e293b", fontSize:13, fontWeight:800 }}
+                  formatter={v => v > 0 ? Math.round(v) : ""}
+                  offset={8}
+                />
               </Bar>
             </BarChart>
           </ResponsiveContainer>
         </ChartCard>
+
+        {/* Debug: Show breakdown for selected year */}
+        <ChartCard title="🔍 Kontrola součtů (2026)" dark={dark}>
+          <div style={{ fontSize:12, ...D.txt2(dark) }}>
+            {(() => {
+              const year2026 = records.filter(r => r.year === 2026).sort((a,b) => a.month - b.month);
+              if (year2026.length === 0) return <p>Žádná data pro rok 2026</p>;
+              
+              const sumH = year2026.reduce((s,r) => s + (r.householdConsumption||0), 0);
+              const sumC = year2026.reduce((s,r) => s + (r.carConsumption||0), 0);
+              const sumB = year2026.reduce((s,r) => s + (r.bojlerConsumption||0), 0);
+              
+              return (
+                <div>
+                  <div style={{ marginBottom:12, padding:8, background: dark?"var(--nb-input)":"#f8fafc", borderRadius:8 }}>
+                    <div style={{ display:"flex", justifyContent:"space-between", marginBottom:4 }}>
+                      <span>🏠 Domácnost:</span>
+                      <strong style={D.txt1(dark)}>{Math.round(sumH)} kWh</strong>
+                    </div>
+                    <div style={{ display:"flex", justifyContent:"space-between", marginBottom:4 }}>
+                      <span style={{ color:"#34d399" }}>🚗 Auto:</span>
+                      <strong style={{ color:"#34d399" }}>{Math.round(sumC)} kWh</strong>
+                    </div>
+                    <div style={{ display:"flex", justifyContent:"space-between", marginBottom:4 }}>
+                      <span>🛁 Bojler:</span>
+                      <strong style={D.txt1(dark)}>{Math.round(sumB)} kWh</strong>
+                    </div>
+                    <div style={{ borderTop:`1px solid ${dark?"var(--nb-border)":"#e2e8f0"}`, paddingTop:8, marginTop:8, display:"flex", justifyContent:"space-between" }}>
+                      <span style={{ fontWeight:700 }}>∑ Celkem:</span>
+                      <strong style={D.txt1(dark)}>{Math.round(sumH + sumC + sumB)} kWh</strong>
+                    </div>
+                  </div>
+
+                  <div style={{ maxHeight:140, overflowY:"auto", fontSize:11 }}>
+                    <table style={{ width:"100%", borderCollapse:"collapse" }}>
+                      <thead style={{ position:"sticky", top:0, background: dark?"var(--nb-card)":"#fff" }}>
+                        <tr style={{ borderBottom:`1px solid ${dark?"var(--nb-border)":"#e2e8f0"}` }}>
+                          <th style={{ textAlign:"left", padding:"4px 0", ...D.txt3(dark) }}>Měsíc</th>
+                          <th style={{ textAlign:"right", padding:"4px 0", ...D.txt3(dark) }}>🏠</th>
+                          <th style={{ textAlign:"right", padding:"4px 0", color:"#34d399" }}>🚗</th>
+                          <th style={{ textAlign:"right", padding:"4px 0", ...D.txt3(dark) }}>🛁</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {year2026.map(r => (
+                          <tr key={r.id} style={{ borderBottom:`1px solid ${dark?"var(--nb-border)":"#f8fafc"}` }}>
+                            <td style={{ padding:"4px 0", ...D.txt2(dark) }}>{MONTHS_CZ[r.month-1]}</td>
+                            <td style={{ textAlign:"right", padding:"4px 0", ...D.txt1(dark) }}>{r.householdConsumption||0}</td>
+                            <td style={{ textAlign:"right", padding:"4px 0", color:"#34d399", fontWeight: (r.carConsumption||0) > 100 ? 700 : 400 }}>
+                              {r.carConsumption||0}
+                            </td>
+                            <td style={{ textAlign:"right", padding:"4px 0", ...D.txt1(dark) }}>{r.bojlerConsumption||0}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+        </ChartCard>
+
         <ChartCard title="Bojler – porovnání měsíců" dark={dark}><Lines data={bojler} /></ChartCard>
         <ChartCard title="Domácnost – porovnání měsíců" dark={dark}><Lines data={house} /></ChartCard>
         <ChartCard title="Auto – porovnání měsíců" dark={dark} span2><Lines data={car} /></ChartCard>
